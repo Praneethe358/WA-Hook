@@ -3,6 +3,7 @@ import cors from 'cors';
 import { CONFIG } from './config';
 import { webhookRouter } from './routes/webhook';
 import { apiRouter } from './routes/api';
+import { simulatorRouter } from './routes/simulator';
 
 const app = express();
 
@@ -12,6 +13,7 @@ app.use(express.json());
 // Routes
 app.use('/', webhookRouter);
 app.use('/', apiRouter);
+app.use('/', simulatorRouter);
 
 // Health Check
 app.get('/health', (_, res) => {
@@ -20,6 +22,7 @@ app.get('/health', (_, res) => {
 
 app.listen(CONFIG.PORT, () => {
   console.log(`\n🚀 WA-hook Core Server active on http://localhost:${CONFIG.PORT}`);
-  console.log(`   - Webhook Verification: GET  http://localhost:${CONFIG.PORT}/webhook`);
-  console.log(`   - Outbound Mock API:   POST http://localhost:${CONFIG.PORT}/v19.0/:phoneNumberId/messages\n`);
+  console.log(`   - Webhook Handshake: GET  http://localhost:${CONFIG.PORT}/webhook`);
+  console.log(`   - Outbound Mock API: POST http://localhost:${CONFIG.PORT}/v19.0/:phoneNumberId/messages`);
+  console.log(`   - Trigger Simulator: POST http://localhost:${CONFIG.PORT}/simulator/trigger\n`);
 });
