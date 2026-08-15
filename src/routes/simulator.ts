@@ -1,7 +1,26 @@
 import { Router, Request, Response } from 'express';
-import { CONFIG } from '../config';
+import { RUNTIME_CONFIG } from '../config';
 
 export const simulatorRouter = Router();
+
+// GET current configuration
+simulatorRouter.get('/simulator/config', (_req: Request, res: Response) => {
+  res.status(200).json({
+    targetWebhookUrl: RUNTIME_CONFIG.TARGET_WEBHOOK_URL,
+    verifyToken: RUNTIME_CONFIG.WEBHOOK_VERIFY_TOKEN,
+  });
+});
+
+// UPDATE configuration dynamically from UI
+simulatorRouter.post('/simulator/config', (req: Request, res: Response) => {
+  const { targetWebhookUrl } = req.body;
+  if (targetWebhookUrl) {
+    RUNTIME_CONFIG.TARGET_WEBHOOK_URL = targetWebhookUrl;
+    console.log(`[WA-hook] Target URL updated to: ${targetWebhookUrl}`);
+    return res.status(200).json({ status: 'updated', targetWebhookUrl });
+  }
+  return res.status(400).json({ error: 'Missing targetWebhookUrl parameter' });
+});
 
 /**
  * Simulator Trigger
@@ -59,11 +78,11 @@ simulatorRouter.post('/simulator/trigger', async (req: Request, res: Response) =
     ],
   };
 
-  console.log(`[WA-hook] Firing simulated '${type}' webhook to ${CONFIG.TARGET_WEBHOOK_URL}...`);
+  console.log(`[WA-hook] Firing simulated '${type}' webhook to ${RUNTIME_CONFIG.TARGET_WEBHOOK_URL}...`);
 
   // 2. Dispatch to the target webhook URL
   try {
-    const response = await fetch(CONFIG.TARGET_WEBHOOK_URL, {
+    const response = await fetch(RUNTIME_CONFIG.TARGET_WEBHOOK_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
