@@ -49,30 +49,47 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 24px;
-            height: 52px;
+            padding: 0 20px;
+            height: 48px;
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border);
             flex-shrink: 0;
         }
-        .topbar-left { display: flex; align-items: center; gap: 12px; }
-        .logo-icon {
-            width: 28px; height: 28px;
-            background: linear-gradient(135deg, var(--accent), #a855f7);
-            border-radius: 7px;
+        .topbar-left { display: flex; align-items: center; gap: 0; }
+        .logo-mark {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, #25d366, #128c7e);
+            border-radius: 8px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 14px; font-weight: 700; color: #fff;
+            margin-right: 10px;
+            box-shadow: 0 0 12px rgba(37, 211, 102, 0.2);
         }
-        .logo-text { font-weight: 700; font-size: 15px; letter-spacing: -0.3px; }
-        .logo-text span { color: var(--text-muted); font-weight: 400; }
+        .logo-mark svg { width: 18px; height: 18px; }
+        .logo-text {
+            font-weight: 700; font-size: 15px; letter-spacing: -0.4px;
+            color: var(--text-primary);
+        }
+        .logo-sep {
+            margin: 0 8px; color: var(--border); font-weight: 300; font-size: 18px;
+        }
+        .logo-context {
+            font-size: 13px; font-weight: 400; color: var(--text-muted);
+        }
         .badge {
             font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
-            padding: 3px 8px; border-radius: 20px;
+            padding: 3px 8px; border-radius: 20px; margin-left: 10px;
         }
-        .badge-version { background: var(--accent-glow); color: var(--accent); }
-        .topbar-right { display: flex; align-items: center; gap: 16px; }
+        .badge-version { background: var(--green-dim); color: var(--green); }
+        .topbar-right { display: flex; align-items: center; gap: 8px; }
+        .status-pill {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 11.5px; color: var(--text-secondary);
+            padding: 5px 12px;
+            background: var(--bg-input); border: 1px solid var(--border);
+            border-radius: 20px;
+        }
         .status-dot {
-            width: 7px; height: 7px; border-radius: 50%; background: var(--green);
+            width: 6px; height: 6px; border-radius: 50%; background: var(--green);
             box-shadow: 0 0 6px var(--green);
             animation: pulse-dot 2s ease-in-out infinite;
         }
@@ -80,13 +97,15 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.4; }
         }
-        .status-text { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
-        .github-link {
+        .nav-btn {
+            display: flex; align-items: center; gap: 6px;
             font-size: 12px; color: var(--text-muted); text-decoration: none;
-            padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px;
-            transition: all 0.2s;
+            padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px;
+            transition: all 0.2s; background: transparent; cursor: pointer;
+            font-family: var(--font);
         }
-        .github-link:hover { color: var(--text-primary); border-color: var(--text-muted); background: var(--bg-hover); }
+        .nav-btn:hover { color: var(--text-primary); border-color: var(--text-muted); background: var(--bg-hover); }
+        .nav-btn svg { width: 14px; height: 14px; }
 
         /* ─── Tab Bar ─── */
         .tabbar {
@@ -97,12 +116,16 @@
             flex-shrink: 0;
         }
         .tab {
+            display: flex; align-items: center; gap: 6px;
             padding: 10px 16px; font-size: 12.5px; font-weight: 500;
             color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent;
             transition: all 0.2s; user-select: none;
         }
+        .tab svg { width: 13px; height: 13px; opacity: 0.5; transition: opacity 0.2s; }
         .tab:hover { color: var(--text-secondary); }
+        .tab:hover svg { opacity: 0.8; }
         .tab.active { color: var(--text-primary); border-bottom-color: var(--accent); }
+        .tab.active svg { opacity: 1; }
 
         /* ─── Main Layout ─── */
         .main { display: flex; flex: 1; overflow: hidden; }
@@ -147,6 +170,32 @@
             background-repeat: no-repeat; background-position: right 12px center;
         }
         .form-textarea { resize: vertical; min-height: 80px; font-family: var(--mono); font-size: 12.5px; }
+
+        /* ─── Config Bar ─── */
+        .config-bar {
+            display: flex; align-items: flex-end; gap: 10px;
+            padding: 10px 24px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .config-bar .form-group { flex: 1; margin-bottom: 0; }
+        .config-bar .form-label { margin-bottom: 4px; font-size: 10px; }
+        .config-bar .form-input { font-family: var(--mono); font-size: 12px; padding: 8px 10px; }
+        .config-status {
+            font-size: 10px; padding: 3px 8px; border-radius: 20px;
+            font-weight: 600; animation: fadeIn 0.3s ease;
+        }
+        .config-status.saved { background: var(--green-dim); color: var(--green); }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .btn-save {
+            padding: 8px 16px; background: var(--bg-input);
+            border: 1px solid var(--border); border-radius: var(--radius);
+            color: var(--text-primary); font-size: 12px; font-weight: 500;
+            cursor: pointer; transition: all 0.2s; font-family: var(--font);
+            white-space: nowrap;
+        }
+        .btn-save:hover { background: var(--bg-hover); border-color: var(--accent); }
 
         .btn-fire {
             width: 100%; padding: 11px 16px;
@@ -267,21 +316,54 @@
     <!-- Top Bar -->
     <div class="topbar">
         <div class="topbar-left">
-            <div class="logo-icon">W</div>
-            <div class="logo-text">WA-Hook <span>/ dashboard</span></div>
+            <div class="logo-mark">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-7.74-4.39L3 21l4.39-1.26A9 9 0 1 1 21 12z"/>
+                    <path d="M9 12l2 2 4-4"/>
+                </svg>
+            </div>
+            <div class="logo-text">WA-Hook</div>
+            <span class="logo-sep">/</span>
+            <span class="logo-context">Dashboard</span>
             <div class="badge badge-version">v0.1.0</div>
         </div>
         <div class="topbar-right">
-            <div class="status-text"><div class="status-dot"></div> Server Online</div>
-            <a href="https://github.com/Praneethe358/WA-Hook" target="_blank" class="github-link">★ GitHub</a>
+            <div class="status-pill"><div class="status-dot"></div> Online</div>
+            <a href="https://github.com/Praneethe358/WA-Hook" target="_blank" class="nav-btn">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+                Star
+            </a>
+            <a href="https://github.com/Praneethe358/WA-Hook/issues" target="_blank" class="nav-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                Issues
+            </a>
         </div>
     </div>
 
     <!-- Tab Bar -->
     <div class="tabbar">
-        <div class="tab active">Simulator</div>
-        <div class="tab">Webhook Logs</div>
-        <div class="tab">Settings</div>
+        <div class="tab active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            Simulator
+        </div>
+        <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Webhook Logs
+        </div>
+        <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Settings
+        </div>
+    </div>
+
+    <!-- Config Bar -->
+    <div class="config-bar">
+        <div class="form-group">
+            <label class="form-label">Target Webhook URL</label>
+            <input type="text" id="targetUrlInput" class="form-input" placeholder="http://localhost:3001/api/webhook">
+        </div>
+        <button class="btn-save" onclick="saveConfig()">Save Target</button>
+        <span id="configStatus"></span>
     </div>
 
     <!-- Main Content -->
@@ -465,6 +547,41 @@
             btn.textContent = '▶ Fire Webhook';
         }
     }
+
+    // ─── Config Persistence ───
+    async function syncServerTarget(url) {
+        await fetch('/simulator/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetWebhookUrl: url })
+        });
+    }
+
+    async function saveConfig() {
+        const url = document.getElementById('targetUrlInput').value.trim();
+        if (!url) return;
+        localStorage.setItem('wa_hook_target_url', url);
+        await syncServerTarget(url);
+        const status = document.getElementById('configStatus');
+        status.className = 'config-status saved';
+        status.textContent = '✓ Saved';
+        setTimeout(() => { status.textContent = ''; status.className = ''; }, 2500);
+    }
+
+    // Auto-load config on page load
+    window.addEventListener('DOMContentLoaded', async () => {
+        const savedUrl = localStorage.getItem('wa_hook_target_url');
+        if (savedUrl) {
+            document.getElementById('targetUrlInput').value = savedUrl;
+            await syncServerTarget(savedUrl);
+        } else {
+            try {
+                const res = await fetch('/simulator/config');
+                const data = await res.json();
+                document.getElementById('targetUrlInput').value = data.targetWebhookUrl;
+            } catch (e) {}
+        }
+    });
 </script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { CONFIG } from '../config';
+import { RUNTIME_CONFIG } from '../config';
 
 export const webhookRouter = Router();
 
@@ -13,7 +13,7 @@ webhookRouter.get('/webhook', (req: Request, res: Response) => {
   const challenge = req.query['hub.challenge'];
 
   if (mode && token) {
-    if (mode === 'subscribe' && token === CONFIG.WEBHOOK_VERIFY_TOKEN) {
+    if (mode === 'subscribe' && token === RUNTIME_CONFIG.WEBHOOK_VERIFY_TOKEN) {
       console.log('[WA-hook] Webhook verified successfully!');
       return res.status(200).send(challenge);
     } else {
