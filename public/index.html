@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WA-hook | Developer Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen p-8">
+    <div class="max-w-5xl mx-auto">
+        <header class="mb-8 border-b pb-4">
+            <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-2">
+                🪝 WA-hook <span class="text-sm font-normal bg-green-100 text-green-700 px-2 py-1 rounded-full">v0.1 Local</span>
+            </h1>
+            <p class="text-slate-500 mt-1">Local WhatsApp Cloud API Simulator</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Left Column: Trigger Form -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-xl font-semibold mb-4">Simulate Incoming Event</h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Payload Type</label>
+                        <select id="payloadType" class="w-full border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="text">Text Message</option>
+                            <option value="interactive">Button Click (Interactive)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Sender Phone Number</label>
+                        <input type="text" id="senderPhone" value="919876543210" class="w-full border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+
+                    <!-- Dynamic Input: Text -->
+                    <div id="textInputGroup">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Message Body</label>
+                        <textarea id="messageBody" rows="3" class="w-full border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Generate GST invoice"></textarea>
+                    </div>
+
+                    <button onclick="triggerWebhook()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                        Fire Webhook 🚀
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Column: Live Logs -->
+            <div class="bg-slate-900 rounded-xl shadow-sm border border-slate-800 overflow-hidden flex flex-col">
+                <div class="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center">
+                    <h2 class="text-sm font-semibold text-white flex items-center gap-2">
+                        <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> Live Payload Logs
+                    </h2>
+                    <button onclick="clearLogs()" class="text-xs text-slate-400 hover:text-white transition-colors">Clear</button>
+                </div>
+                <div id="logContainer" class="p-4 flex-1 overflow-y-auto max-h-[400px] font-mono text-xs text-green-400 space-y-3">
+                    <div class="text-slate-500">Waiting for events...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Toggle inputs based on payload type
+        document.getElementById('payloadType').addEventListener('change', (e) => {
+            const isText = e.target.value === 'text';
+            document.getElementById('textInputGroup').style.display = isText ? 'block' : 'none';
+        });
+
+        function appendLog(title, data, isError = false) {
+            const logs = document.getElementById('logContainer');
+            if (logs.innerHTML.includes('Waiting for events')) logs.innerHTML = '';
+            
+            const colorClass = isError ? 'text-red-400' : 'text-blue-300';
+            const logEntry = `
+                <div class="border-l-2 ${isError ? 'border-red-500' : 'border-blue-500'} pl-2 mb-2">
+                    <div class="${colorClass} font-bold mb-1">${title}</div>
+                    <pre class="overflow-x-auto text-slate-300">${JSON.stringify(data, null, 2)}</pre>
+                </div>
+            `;
+            logs.insertAdjacentHTML('afterbegin', logEntry);
+        }
+
+        function clearLogs() {
+            document.getElementById('logContainer').innerHTML = '<div class="text-slate-500">Waiting for events...</div>';
+        }
+
+        async function triggerWebhook() {
+            const type = document.getElementById('payloadType').value;
+            const from = document.getElementById('senderPhone').value;
+            
+            let payload = { type, from };
+            
+            if (type === 'text') {
+                payload.message = document.getElementById('messageBody').value;
+            } else {
+                payload.button_payload = { id: 'btn_1', title: 'Confirm Order' };
+            }
+
+            try {
+                const response = await fetch('/simulator/trigger', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    appendLog('Dispatched Webhook:', result.dispatched_payload);
+                } else {
+                    appendLog('Dispatch Error:', result, true);
+                }
+            } catch (error) {
+                appendLog('Network Error:', { message: 'Is your local server running?' }, true);
+            }
+        }
+    </script>
+</body>
+</html>
