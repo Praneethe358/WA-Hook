@@ -1,360 +1,425 @@
-import blessed from 'blessed';
+import chalk from 'chalk';
 import { RUNTIME_CONFIG } from '../config';
 
+// ══════════════════════════════════════════════════════════════════════
+// WA-Hook TUI — Zero-framework, raw ANSI rendering engine.
+//
+// Every frame is computed as a single string and flushed to stdout
+// in one atomic write() call. This makes partial redraws and screen
+// tearing physically impossible. No blessed, no ink, no framework.
+// ══════════════════════════════════════════════════════════════════════
+
+// ── Box-drawing characters ──
+const TL = '┌', TR = '┐', BL = '└', BR = '┘';
+const H = '─', V = '│', LT = '├', RT = '┤';
+
+// ── ANSI helpers ──
+const ESC = '\x1b';
+const ALT_ON = `${ESC}[?1049h`;    // Enter alternate screen buffer
+const ALT_OFF = `${ESC}[?1049l`;   // Exit alternate screen buffer
+const HIDE_CUR = `${ESC}[?25l`;    // Hide cursor
+const SHOW_CUR = `${ESC}[?25h`;    // Show cursor
+const HOME = `${ESC}[H`;           // Move cursor to top-left
+const CLEAR = `${ESC}[2J`;         // Clear entire screen
+
+// ── Theme ──
+const c = {
+  border: chalk.gray,
+  label: chalk.magenta.bold,
+  text: chalk.white,
+  muted: chalk.gray,
+  green: chalk.green,
+  red: chalk.red,
+  cyan: chalk.cyan,
+  yellow: chalk.yellow,
+  highlight: chalk.bgMagenta.white,
+  editHighlight: chalk.bgBlue.white,
+  btnNormal: chalk.bgMagenta.white.bold,
+  btnFocus: chalk.bgBlue.white.bold,
+};
+
+// ── Utility: pad string to exact visible width ──
+function pad(str: string, width: number): string {
+  const visible = stripAnsi(str);
+  if (visible.length >= width) return str.substring(0, width);
+  return str + ' '.repeat(width - visible.length);
+}
+
+function stripAnsi(str: string): string {
+  return str.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
+// ── Draw a bordered box as an array of lines ──
+function drawBox(
+  width: number,
+  height: number,
+  label: string,
+  contentLines: string[]
+): string[] {
+  const inner = width - 2;
+  const lines: string[] = [];
+
+  // Top border with label
+  const labelStr = label ? ` ${label} ` : '';
+  const topFill = inner - stripAnsi(labelStr).length;
+  lines.push(
+    c.border(TL) +
+    c.border(H) +
+    c.label(labelStr) +
+    c.border(H.repeat(Math.max(0, topFill - 1))) +
+    c.border(TR)
+  );
+
+  // Content rows
+  for (let i = 0; i < height - 2; i++) {
+    const content = contentLines[i] || '';
+    lines.push(
+      c.border(V) + pad(content, inner) + c.border(V)
+    );
+  }
+
+  // Bottom border
+  lines.push(c.border(BL) + c.border(H.repeat(inner)) + c.border(BR));
+
+  return lines;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// MAIN TUI
+// ══════════════════════════════════════════════════════════════════════
+
+interface Field {
+  label: string;
+  value: string;
+}
+
 export async function startTUI() {
-  const screen = blessed.screen({
-    smartCSR: false,
-    fastCSR: true,
-    dockBorders: false,
-    title: 'WA-Hook Fleet Overview',
-    fullUnicode: true,
-    warnings: false,
-    style: {
-      bg: 'black',
-      fg: 'white'
-    }
-  });
+  // ── Intercept console output from Express routes ──
+  const pendingLogs: string[] = [];
+  const origLog = console.log.bind(console);
+  const origWarn = console.warn.bind(console);
+  const origErr = console.error.bind(console);
+  console.log = (...a: any[]) => pendingLogs.push(a.map(String).join(' '));
+  console.warn = (...a: any[]) => pendingLogs.push('[W] ' + a.map(String).join(' '));
+  console.error = (...a: any[]) => pendingLogs.push('[E] ' + a.map(String).join(' '));
 
-  // Clean teardown on exit
-  const destroyScreen = () => {
-    try {
-      screen.destroy();
-    } catch {}
-  };
-  process.on('SIGINT', destroyScreen);
-  process.on('SIGTERM', destroyScreen);
-  process.on('exit', destroyScreen);
-
-  // Global uncaught error shield: Prevents process crash and terminal reset
-  process.on('uncaughtException', () => {
-    // Ignore internal blessed mouse/key syntax warnings
-  });
-
-  // Theme Colors
-  const bgCol = 'black';
-  const borderCol = 'gray';
-  const labelCol = 'magenta';
-  const textCol = 'white';
-  const mutedCol = 'light-gray';
-
-  // 1. Header Bar
-  const header = blessed.box({
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: 1,
-    content: ' {bold}WA-HOOK{/bold} Fleet overview',
-    tags: true,
-    style: { fg: textCol, bg: 'black' }
-  });
-
-  // 2. Status Row (Left)
-  const statusBox = blessed.box({
-    top: 1,
-    left: 0,
-    width: '33%',
-    height: 6,
-    label: ' STATUS ',
-    content: `\n {green-fg}✓ Clean{/green-fg}\n Port: ${RUNTIME_CONFIG.PORT}\n Target: ${RUNTIME_CONFIG.TARGET_WEBHOOK_URL}`,
-    tags: true,
-    border: { type: 'line' },
-    style: {
-      fg: textCol,
-      bg: bgCol,
-      border: { fg: borderCol, bg: bgCol },
-      label: { fg: labelCol, bg: bgCol, bold: true }
-    }
-  });
-
-  // 3. Stats Row (Center)
-  const statsBox = blessed.box({
-    top: 1,
-    left: '33%',
-    width: '34%',
-    height: 6,
-    label: ' COMMITS (DISPATCHES) ',
-    content: `\n {bold}0{/bold} Dispatched\n {bold}0{/bold} Failed\n 1 Contributor`,
-    tags: true,
-    border: { type: 'line' },
-    style: {
-      fg: textCol,
-      bg: bgCol,
-      border: { fg: borderCol, bg: bgCol },
-      label: { fg: labelCol, bg: bgCol, bold: true }
-    }
-  });
-
-  // 4. Remote Box (Right)
-  const remoteBox = blessed.box({
-    top: 1,
-    left: '67%',
-    width: '33%',
-    height: 6,
-    label: ' REMOTE SUMMARY ',
-    content: `\n origin  {green-fg}↑ 0{/green-fg}  {red-fg}↓ 0{/red-fg}`,
-    tags: true,
-    border: { type: 'line' },
-    style: {
-      fg: textCol,
-      bg: bgCol,
-      border: { fg: borderCol, bg: bgCol },
-      label: { fg: labelCol, bg: bgCol, bold: true }
-    }
-  });
-
-  // 5. Main Simulator Area
-  const form = blessed.form({
-    top: 7,
-    left: 0,
-    width: '67%',
-    height: '100%-8',
-    label: ' STAGED / SIMULATOR ',
-    border: { type: 'line' },
-    style: {
-      fg: textCol,
-      bg: bgCol,
-      border: { fg: borderCol, bg: bgCol },
-      label: { fg: labelCol, bg: bgCol, bold: true }
-    }
-  });
-
-  blessed.text({
-    parent: form,
-    top: 1,
-    left: 2,
-    content: 'Phone Number:',
-    style: { fg: mutedCol, bg: bgCol }
-  });
-
-  const phoneInput = blessed.textbox({
-    parent: form,
-    top: 1,
-    left: 20,
-    width: 30,
-    height: 1,
-    value: '919876543210',
-    style: {
-      fg: textCol,
-      bg: 'black',
-      focus: { bg: 'magenta', fg: 'white' }
-    }
-  });
-
-  blessed.text({
-    parent: form,
-    top: 3,
-    left: 2,
-    content: 'Payload Type:',
-    style: { fg: mutedCol, bg: bgCol }
-  });
-
-  const typeInput = blessed.textbox({
-    parent: form,
-    top: 3,
-    left: 20,
-    width: 30,
-    height: 1,
-    value: 'text',
-    style: {
-      fg: textCol,
-      bg: 'black',
-      focus: { bg: 'magenta', fg: 'white' }
-    }
-  });
-
-  blessed.text({
-    parent: form,
-    top: 5,
-    left: 2,
-    content: 'Message Body:',
-    style: { fg: mutedCol, bg: bgCol }
-  });
-
-  const messageInput = blessed.textbox({
-    parent: form,
-    top: 5,
-    left: 20,
-    width: 45,
-    height: 1,
-    value: 'Generate GST invoice',
-    style: {
-      fg: textCol,
-      bg: 'black',
-      focus: { bg: 'magenta', fg: 'white' }
-    }
-  });
-
-  // Dedicated Error / Status Box in bottom left of simulator
-  const errorBox = blessed.box({
-    parent: form,
-    top: 7,
-    left: 2,
-    width: '94%',
-    height: 5,
-    label: ' DISPATCH STATUS & ERRORS ',
-    content: '{gray-fg}Ready to dispatch webhook.{/gray-fg}',
-    tags: true,
-    border: { type: 'line' },
-    style: {
-      fg: textCol,
-      bg: bgCol,
-      border: { fg: borderCol, bg: bgCol },
-      label: { fg: labelCol, bg: bgCol, bold: true }
-    }
-  });
-
-  const submitBtn = blessed.box({
-    parent: form,
-    bottom: 1,
-    left: 2,
-    width: 24,
-    height: 3,
-    content: ' PUSH WEBHOOK ',
-    align: 'center',
-    valign: 'middle',
-    border: { type: 'line' },
-    style: {
-      fg: 'white',
-      bg: 'magenta',
-      border: { fg: 'white', bg: bgCol },
-      focus: { bg: 'blue', border: { fg: 'white', bg: bgCol } }
-    }
-  });
-
-  // 6. Right Area - Logs
-  const logBox = blessed.log({
-    top: 7,
-    left: '67%',
-    width: '33%',
-    height: '100%-8',
-    label: ' RECENT COMMITS (LOGS) ',
-    tags: true,
-    scrollback: 100,
-    border: { type: 'line' },
-    style: {
-      fg: textCol,
-      bg: bgCol,
-      border: { fg: borderCol, bg: bgCol },
-      label: { fg: labelCol, bg: bgCol, bold: true }
-    }
-  });
-
-  // 7. Footer
-  const footer = blessed.box({
-    bottom: 0,
-    left: 0,
-    width: '100%',
-    height: 1,
-    content: ' {white-fg}q{/white-fg} Quit   {white-fg}Tab / ↓{/white-fg} Next Field   {white-fg}Enter{/white-fg} Edit / Push Webhook',
-    tags: true,
-    style: { fg: mutedCol, bg: 'black' }
-  });
-
-  screen.append(header);
-  screen.append(statusBox);
-  screen.append(statsBox);
-  screen.append(remoteBox);
-  screen.append(form);
-  screen.append(logBox);
-  screen.append(footer);
-
-  logBox.log('{gray-fg}Waiting for actions...{/gray-fg}');
-
+  // ── State ──
+  const fields: Field[] = [
+    { label: 'Phone Number:', value: '919876543210' },
+    { label: 'Payload Type:', value: 'text' },
+    { label: 'Message Body:', value: 'Generate GST invoice' },
+  ];
+  let focusIdx = 0;          // 0-2 = fields, 3 = button
+  let isEditing = false;
+  let editBuffer = '';
   let dispatched = 0;
   let failed = 0;
+  let statusLine = c.muted('Ready to dispatch webhook.');
+  const logLines: string[] = [c.muted('Waiting for actions...')];
 
-  const triggerDispatch = async () => {
-    const from = phoneInput.getValue();
-    const type = typeInput.getValue();
-    const message = messageInput.getValue();
+  // ── Terminal setup ──
+  const cols = () => process.stdout.columns || 80;
+  const rows = () => process.stdout.rows || 24;
 
+  process.stdout.write(ALT_ON + HIDE_CUR + CLEAR);
+
+  // Enable raw mode for keypress capture
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(true);
+  }
+  process.stdin.resume();
+  process.stdin.setEncoding('utf8');
+
+  // ── Clean exit ──
+  const cleanup = () => {
+    console.log = origLog;
+    console.warn = origWarn;
+    console.error = origErr;
+    process.stdout.write(SHOW_CUR + ALT_OFF);
+    if (process.stdin.isTTY) {
+      try { process.stdin.setRawMode(false); } catch {}
+    }
+    process.stdin.pause();
+  };
+
+  const exit = () => {
+    cleanup();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', exit);
+  process.on('SIGTERM', exit);
+
+  // ══════════════════════════════════════════════════════════════════
+  // RENDER — builds the entire frame and flushes it atomically
+  // ══════════════════════════════════════════════════════════════════
+  function render() {
+    const W = cols();
+    const H_TOTAL = rows();
+    const leftW = Math.floor(W * 0.67);
+    const rightW = W - leftW;
+
+    const output: string[] = [];
+
+    // ── Row 0: Header ──
+    output.push(pad(c.text(' ') + chalk.bold('WA-HOOK') + c.text(' Fleet overview'), W));
+
+    // ── Rows 1-6: Status / Stats / Remote (3 columns) ──
+    const col1W = Math.floor(W / 3);
+    const col2W = Math.floor(W / 3);
+    const col3W = W - col1W - col2W;
+
+    const statusContent = [
+      '',
+      ` ${c.green('*')} ${c.green('Clean')}`,
+      ` Port: ${RUNTIME_CONFIG.PORT}`,
+      ` Target: ${RUNTIME_CONFIG.TARGET_WEBHOOK_URL.substring(0, col1W - 6)}`,
+    ];
+    const statsContent = [
+      '',
+      ` ${chalk.bold(dispatched.toString())} Dispatched`,
+      ` ${chalk.bold(failed.toString())} Failed`,
+      ` 1 Contributor`,
+    ];
+    const remoteContent = [
+      '',
+      ` origin  ${c.green('^' + dispatched)}  ${c.red('v' + failed)}`,
+    ];
+
+    const statusBox = drawBox(col1W, 6, 'STATUS', statusContent);
+    const statsBox = drawBox(col2W, 6, 'COMMITS (DISPATCHES)', statsContent);
+    const remoteBox = drawBox(col3W, 6, 'REMOTE SUMMARY', remoteContent);
+
+    for (let i = 0; i < 6; i++) {
+      output.push(
+        (statusBox[i] || ' '.repeat(col1W)) +
+        (statsBox[i] || ' '.repeat(col2W)) +
+        (remoteBox[i] || ' '.repeat(col3W))
+      );
+    }
+
+    // ── Rows 7+: Simulator (left) + Logs (right) ──
+    const simH = H_TOTAL - 8; // -1 header, -6 top row, -1 footer
+    const logH = simH;
+
+    // Build simulator content
+    const simContent: string[] = [];
+
+    // Fields
+    for (let fi = 0; fi < fields.length; fi++) {
+      const f = fields[fi];
+      const labelPad = pad(c.muted(`  ${f.label}`), 19);
+      let valStr: string;
+
+      if (isEditing && focusIdx === fi) {
+        valStr = c.editHighlight(` ${editBuffer}_ `);
+      } else if (!isEditing && focusIdx === fi) {
+        valStr = c.highlight(` ${f.value} `);
+      } else {
+        valStr = c.text(` ${f.value}`);
+      }
+
+      simContent.push(labelPad + valStr);
+      simContent.push(''); // spacer line
+    }
+
+    // Error/status box (embedded as sub-box)
+    const errBoxLines = drawBox(leftW - 6, 5, 'DISPATCH STATUS & ERRORS', [
+      ' ' + statusLine,
+      '',
+      '',
+    ]);
+    for (const el of errBoxLines) {
+      simContent.push('  ' + el);
+    }
+
+    // Fill remaining space
+    while (simContent.length < simH - 5) {
+      simContent.push('');
+    }
+
+    // Button
+    const btnText = '  PUSH WEBHOOK  ';
+    const btnStr = focusIdx === 3
+      ? c.btnFocus(` ${btnText} `)
+      : c.btnNormal(` ${btnText} `);
+    simContent.push('');
+    simContent.push(`  ${btnStr}`);
+    simContent.push('');
+
+    const simBox = drawBox(leftW, simH, 'STAGED / SIMULATOR', simContent);
+
+    // Build log content
+    const visibleLogs = logLines.slice(-(logH - 2));
+    const logContent: string[] = [];
+    for (const l of visibleLogs) {
+      logContent.push(' ' + l);
+    }
+    const logBoxLines = drawBox(rightW, logH, 'RECENT COMMITS (LOGS)', logContent);
+
+    for (let i = 0; i < simH; i++) {
+      output.push(
+        (simBox[i] || ' '.repeat(leftW)) +
+        (logBoxLines[i] || ' '.repeat(rightW))
+      );
+    }
+
+    // ── Footer ──
+    output.push(
+      pad(
+        c.muted(' ') +
+        c.text('q') + c.muted(' Quit   ') +
+        c.text('Tab') + c.muted(' Next   ') +
+        c.text('Enter') + c.muted(' Edit / Push'),
+        W
+      )
+    );
+
+    // ── Atomic flush ──
+    const frame = HOME + output.join('\n');
+    process.stdout.write(frame);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // DISPATCH
+  // ══════════════════════════════════════════════════════════════════
+  async function triggerDispatch() {
     const time = new Date().toLocaleTimeString();
-    logBox.log(`{cyan-fg}[${time}]{/cyan-fg} Dispatching ${type}...`);
-    errorBox.setContent('{yellow-fg}⏳ Sending request to target URL...{/yellow-fg}');
-    screen.render();
+    logLines.push(`${c.cyan(`[${time}]`)} Dispatching...`);
+    statusLine = c.yellow('Sending request to target URL...');
+    render();
 
     const payload = {
-      from,
-      type,
-      ...(type === 'text' ? { message } : { button_payload: { id: 'btn_1', title: 'Action' } })
+      from: fields[0].value,
+      type: fields[1].value,
+      ...(fields[1].value === 'text'
+        ? { message: fields[2].value }
+        : { button_payload: { id: 'btn_1', title: 'Action' } })
     };
 
     try {
-      const res = await fetch(`http://localhost:${RUNTIME_CONFIG.PORT}/simulator/trigger`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      const res = await fetch(
+        `http://localhost:${RUNTIME_CONFIG.PORT}/simulator/trigger`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
         dispatched++;
-        logBox.log(`{green-fg}✓ Success: 200 OK{/green-fg}`);
-        errorBox.setContent(`{green-fg}✓ SUCCESS (200 OK){/green-fg}\nTarget server accepted webhook payload.`);
+        logLines.push(c.green('* Success: 200 OK'));
+        statusLine = c.green('* SUCCESS (200 OK) — Target accepted payload.');
       } else {
         failed++;
-        logBox.log(`{red-fg}✖ Failed (${res.status}){/red-fg}`);
-        errorBox.setContent(`{red-fg}✖ DISPATCH FAILED (Status ${res.status}){/red-fg}\n${data.error || 'Target rejected request'}`);
+        logLines.push(c.red(`x Failed (${res.status})`));
+        statusLine = c.red(`x FAILED (${res.status}) — ${data.error || 'Rejected'}`);
       }
-    } catch (e: any) {
+    } catch {
       failed++;
-      logBox.log(`{red-fg}✖ Error: Network failed{/red-fg}`);
-      errorBox.setContent(`{red-fg}✖ CONNECTION REFUSED (ECONNREFUSED){/red-fg}\nTarget: ${RUNTIME_CONFIG.TARGET_WEBHOOK_URL}\nCheck if your backend server is running!`);
+      logLines.push(c.red('x Network error'));
+      statusLine = c.red('x CONNECTION REFUSED — Is your backend running?');
     }
 
-    statsBox.setContent(`\n {bold}${dispatched}{/bold} Dispatched\n {bold}${failed}{/bold} Failed\n 1 Contributor`);
-    remoteBox.setContent(`\n origin  {green-fg}↑ ${dispatched}{/green-fg}  {red-fg}↓ ${failed}{/red-fg}`);
-    screen.render();
-  };
+    render();
+  }
 
-  // Focusables management
-  const focusables = [phoneInput, typeInput, messageInput, submitBtn];
-  let currIdx = 0;
-  let isEditing = false;
+  // ══════════════════════════════════════════════════════════════════
+  // KEYBOARD INPUT — raw stdin, no framework
+  // ══════════════════════════════════════════════════════════════════
+  process.stdin.on('data', (data: string) => {
+    for (let i = 0; i < data.length; i++) {
+      const ch = data[i];
+      const code = ch.charCodeAt(0);
 
-  const focusItem = (idx: number) => {
-    if (isEditing) return; // Don't interrupt active typing session
-    currIdx = (idx + focusables.length) % focusables.length;
-    focusables[currIdx].focus();
-    screen.render();
-  };
-
-  // Keyboard navigation
-  screen.key(['tab', 'down'], () => {
-    if (!isEditing) focusItem(currIdx + 1);
-  });
-
-  screen.key(['S-tab', 'up'], () => {
-    if (!isEditing) focusItem(currIdx - 1);
-  });
-
-  // Enter key action handling
-  screen.key(['enter'], () => {
-    const active = focusables[currIdx];
-    if (active === submitBtn) {
-      triggerDispatch();
-    } else if (active && !isEditing) {
-      isEditing = true;
-      const textbox = active as blessed.Widgets.TextboxElement;
-      textbox.readInput((_err, value) => {
-        isEditing = false;
-        if (value !== undefined) {
-          textbox.setValue(value);
+      // ── Check for escape sequences (arrow keys, etc.) ──
+      if (ch === '\x1b' && data[i + 1] === '[') {
+        const seq = data[i + 2];
+        if (seq === 'B') { // Down arrow
+          if (!isEditing) { focusIdx = (focusIdx + 1) % 4; render(); }
+          i += 2;
+          continue;
         }
-        focusItem(currIdx + 1);
-      });
+        if (seq === 'A') { // Up arrow
+          if (!isEditing) { focusIdx = (focusIdx + 3) % 4; render(); }
+          i += 2;
+          continue;
+        }
+        i += 2;
+        continue;
+      }
+
+      // ── EDITING MODE ──
+      if (isEditing) {
+        if (ch === '\r' || ch === '\n') {
+          // Save and exit edit mode
+          fields[focusIdx].value = editBuffer;
+          isEditing = false;
+          focusIdx = (focusIdx + 1) % 4;
+          render();
+          continue;
+        }
+        if (code === 27) { // Escape
+          isEditing = false;
+          render();
+          continue;
+        }
+        if (code === 127 || code === 8) { // Backspace
+          editBuffer = editBuffer.slice(0, -1);
+          render();
+          continue;
+        }
+        if (code >= 32 && code < 127) { // Printable ASCII
+          editBuffer += ch;
+          render();
+          continue;
+        }
+        continue;
+      }
+
+      // ── NAVIGATION MODE ──
+      if (ch === '\t') { // Tab
+        focusIdx = (focusIdx + 1) % 4;
+        render();
+        continue;
+      }
+      if (ch === '\r' || ch === '\n') { // Enter
+        if (focusIdx === 3) {
+          triggerDispatch();
+        } else {
+          isEditing = true;
+          editBuffer = fields[focusIdx].value;
+          render();
+        }
+        continue;
+      }
+      if (ch === 'q' || code === 3) { // q or Ctrl+C
+        exit();
+        return;
+      }
     }
   });
 
-  screen.key(['escape', 'q', 'C-c'], () => {
-    if (isEditing) {
-      isEditing = false;
-      return;
+  // ── Drain Express logs periodically ──
+  setInterval(() => {
+    if (pendingLogs.length > 0) {
+      const logs = pendingLogs.splice(0, pendingLogs.length);
+      for (const msg of logs) {
+        logLines.push(c.muted(stripAnsi(msg)));
+      }
+      render();
     }
-    destroyScreen();
-    process.exit(0);
+  }, 500);
+
+  // ── Handle terminal resize ──
+  process.stdout.on('resize', () => {
+    process.stdout.write(CLEAR);
+    render();
   });
 
-  focusItem(0);
+  // ── Initial render ──
+  render();
 }
