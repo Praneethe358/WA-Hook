@@ -11,8 +11,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve Static Dashboard UI
-app.use(express.static(path.join(__dirname, '../public')));
+// Serve Static Dashboard UI (resolves correctly in both dev and built dist directories)
+const publicPath = path.resolve(__dirname, '../public');
+app.use(express.static(publicPath));
 
 // Routes
 app.use('/', webhookRouter);
@@ -24,10 +25,18 @@ app.get('/health', (_, res) => {
   res.status(200).json({ status: 'ok', service: 'WA-hook Core' });
 });
 
-app.listen(RUNTIME_CONFIG.PORT, () => {
-  console.log(`\n🚀 WA-hook Core Server active on http://localhost:${RUNTIME_CONFIG.PORT}`);
-  console.log(`   - 🖥️  Dashboard UI:      http://localhost:${RUNTIME_CONFIG.PORT}`);
-  console.log(`   - 🤝 Webhook Handshake: GET  http://localhost:${RUNTIME_CONFIG.PORT}/webhook`);
-  console.log(`   - 📤 Outbound Mock API: POST http://localhost:${RUNTIME_CONFIG.PORT}/v19.0/:phoneNumberId/messages`);
-  console.log(`   - 📥 Trigger Simulator: POST http://localhost:${RUNTIME_CONFIG.PORT}/simulator/trigger\n`);
-});
+export function startServer() {
+  app.listen(RUNTIME_CONFIG.PORT, () => {
+    console.log(`\n==================================================`);
+    console.log(`🚀 WA-hook Active on http://localhost:${RUNTIME_CONFIG.PORT}`);
+    console.log(`🎯 Target Webhook:    ${RUNTIME_CONFIG.TARGET_WEBHOOK_URL}`);
+    console.log(`🔑 Handshake Token:   ${RUNTIME_CONFIG.WEBHOOK_VERIFY_TOKEN}`);
+    console.log(`🖥️  Dashboard UI:      http://localhost:${RUNTIME_CONFIG.PORT}`);
+    console.log(`==================================================\n`);
+  });
+}
+
+// Auto-start if executed directly (e.g. via tsx in development)
+if (require.main === module) {
+  startServer();
+}
