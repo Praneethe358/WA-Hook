@@ -1,55 +1,60 @@
 import figlet from 'figlet';
 import chalk from 'chalk';
 import ora from 'ora';
+import gradient from 'gradient-string';
 import { RUNTIME_CONFIG } from '../config';
+
+// Helper to calculate true string length by ignoring invisible Chalk color codes
+const stripAnsi = (str: string) => str.replace(/\x1B\[[0-9;]*m/g, '');
 
 export async function displayStartupSequence() {
   console.clear();
 
-  // 1. The ASCII Banner
-  console.log(
-    chalk.green(
-      figlet.textSync('WA - hook', { horizontalLayout: 'full' })
-    )
-  );
-  console.log(chalk.gray('  WhatsApp Cloud API Local Simulator v0.1.0\n'));
+  const brandPurple = chalk.hex('#8B5CF6');
+  const brandGreen = chalk.hex('#10B981');
 
-  // 2. The Animated Spinner Sequence
-  const spinner = ora({
-    text: 'Initializing Mock Engine...',
-    color: 'cyan',
-    spinner: 'dots'
-  }).start();
-
-  // Simulate a quick loading sequence for professional feel
-  await new Promise(resolve => setTimeout(resolve, 600));
-  spinner.text = 'Loading configuration...';
-  await new Promise(resolve => setTimeout(resolve, 400));
-  spinner.text = 'Mounting webhook endpoints...';
-  await new Promise(resolve => setTimeout(resolve, 500));
+  // 1. The ASCII Banner with solid brand color
+  const bannerText = figlet.textSync('WA-Hook', { font: 'Slant' });
+  console.log(brandPurple(bannerText));
   
-  spinner.succeed(chalk.green('WA-hook is ready!'));
-  console.log('\n');
+  console.log(
+    chalk.gray('  WhatsApp Cloud API Local Simulator ') + 
+    brandGreen('v0.1.0\n')
+  );
+  console.log(brandGreen('✓ WA-hook is ready for incoming requests!\n'));
 
-  // 3. The Boxed Status Layout
-  const boxWidth = 50;
-  const border = chalk.gray('│');
-  const topBorder = chalk.gray('╭' + '─'.repeat(boxWidth) + '╮');
-  const bottomBorder = chalk.gray('╰' + '─'.repeat(boxWidth) + '╯');
-  const divider = chalk.gray('├' + '─'.repeat(boxWidth) + '┤');
+  // 2. Define the Box Content
+  const title = 'LOCAL SIMULATOR STATUS';
+  const lines = [
+    `${brandPurple('→')} ${chalk.bold.white('Local Port')} : ${chalk.white(RUNTIME_CONFIG.PORT)}`,
+    `${brandPurple('→')} ${chalk.bold.white('Target URL')} : ${chalk.gray(RUNTIME_CONFIG.TARGET_WEBHOOK_URL)}`,
+    `${brandPurple('→')} ${chalk.bold.white('Dashboard')}  : ${brandPurple.underline(`http://localhost:${RUNTIME_CONFIG.PORT}`)}`
+  ];
 
-  const pad = (str: string, length: number) => {
-    // Strip ANSI codes for length calculation
-    const visibleLength = str.replace(/\u001b\[\d+m/g, '').length;
-    return str + ' '.repeat(Math.max(0, length - visibleLength));
+  // 3. Dynamically Calculate the Perfect Box Width
+  const visibleLengths = lines.map(line => stripAnsi(line).length);
+  const maxContentLength = Math.max(stripAnsi(title).length, ...visibleLengths);
+  const boxWidth = maxContentLength + 4; // Add 2 spaces padding on each side
+
+  // 4. Box Drawing Characters (Subtle gray borders)
+  const borderCol = chalk.hex('#3F3F46'); // zinc-700
+  const topBorder = borderCol('╭' + '─'.repeat(boxWidth) + '╮');
+  const divider = borderCol('├' + '─'.repeat(boxWidth) + '┤');
+  const bottomBorder = borderCol('╰' + '─'.repeat(boxWidth) + '╯');
+
+  const padLine = (str: string, visibleLen: number) => {
+    const padding = boxWidth - visibleLen - 2; // -2 for the left space and right space
+    return ` ${str}${' '.repeat(padding)} `;
   };
 
+  // 5. Render the Flawless Box
   console.log(topBorder);
-  console.log(`${border} ${pad(chalk.bold.white('SERVER STATUS'), boxWidth - 2)} ${border}`);
+  console.log(borderCol('│') + padLine(chalk.white.bold(title), stripAnsi(title).length) + borderCol('│'));
   console.log(divider);
-  console.log(`${border} ${pad(`${chalk.cyan('Local Port')}   : ${RUNTIME_CONFIG.PORT}`, boxWidth - 2)} ${border}`);
-  console.log(`${border} ${pad(`${chalk.cyan('Target URL')}   : ${RUNTIME_CONFIG.TARGET_WEBHOOK_URL}`, boxWidth - 2)} ${border}`);
-  console.log(`${border} ${pad(`${chalk.cyan('Dashboard')}    : http://localhost:${RUNTIME_CONFIG.PORT}`, boxWidth - 2)} ${border}`);
+  lines.forEach((line, idx) => {
+    console.log(borderCol('│') + padLine(line, visibleLengths[idx]) + borderCol('│'));
+  });
   console.log(bottomBorder);
-  console.log('\n');
+  
+  console.log(chalk.gray('\nListening for webhooks. Press Ctrl+C to stop.\n'));
 }
