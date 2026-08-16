@@ -78,8 +78,6 @@ simulatorRouter.post('/simulator/trigger', async (req: Request, res: Response) =
     ],
   };
 
-  console.log(`[WA-hook] Firing simulated '${type}' webhook to ${RUNTIME_CONFIG.TARGET_WEBHOOK_URL}...`);
-
   // 2. Dispatch to the target webhook URL
   try {
     const response = await fetch(RUNTIME_CONFIG.TARGET_WEBHOOK_URL, {
@@ -91,14 +89,11 @@ simulatorRouter.post('/simulator/trigger', async (req: Request, res: Response) =
     });
 
     if (response.ok) {
-      console.log('[WA-hook] Target server accepted the webhook (200 OK).');
       return res.status(200).json({ status: 'success', dispatched_payload: metaPayload });
     } else {
-      console.error(`[WA-hook] Target server responded with status: ${response.status}`);
-      return res.status(502).json({ error: 'Target server rejected webhook', status: response.status });
+      return res.status(502).json({ error: `Target server responded with status: ${response.status}`, status: response.status });
     }
-  } catch (error) {
-    console.error('[WA-hook] Failed to reach target webhook URL. Is your app running?', error);
-    return res.status(500).json({ error: 'Failed to reach target webhook URL' });
+  } catch (error: any) {
+    return res.status(500).json({ error: 'Failed to reach target webhook URL', message: error?.message || 'Connection refused' });
   }
 });

@@ -25,8 +25,8 @@ app.get('/health', (_, res) => {
   res.status(200).json({ status: 'ok', service: 'WA-hook Core' });
 });
 
-import { displayStartupSequence } from './utils/logger';
 import { saveState, clearState } from './utils/state';
+import { startTUI } from './utils/tui';
 
 export async function startServer() {
   const server = app.listen(RUNTIME_CONFIG.PORT, async () => {
@@ -37,11 +37,11 @@ export async function startServer() {
       pid: process.pid
     });
 
-    // 2. Trigger your existing terminal animations
-    await displayStartupSequence();
+    // 2. Launch the full-screen Blessed TUI
+    await startTUI();
   });
 
-  // 3. Clean up state on exit
+  // 4. Clean up state on exit
   const cleanup = () => {
     clearState();
     server.close(() => process.exit(0));

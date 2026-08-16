@@ -43,9 +43,9 @@ program
       // Ping the server to verify it's actually alive
       const res = await fetch(`http://localhost:${state.port}/health`);
       if (res.ok) {
-        console.log(chalk.green(`\n● WA-hook is RUNNING on port ${state.port}`));
-        console.log(chalk.cyan(`  Target: ${state.targetUrl}`));
-        console.log(chalk.cyan(`  PID:    ${state.pid}\n`));
+        console.log(chalk.hex('#10B981')(`\n● WA-hook is RUNNING on port ${state.port}`));
+        console.log(chalk.hex('#6366F1')(`  ➜ Target: `) + chalk.gray(state.targetUrl));
+        console.log(chalk.hex('#6366F1')(`  ➜ PID:    `) + chalk.gray(state.pid) + '\n');
       }
     } catch {
       console.log(chalk.yellow('\n⚠ State file exists, but server is not responding.'));
@@ -65,35 +65,38 @@ program
       return;
     }
 
-    console.log(chalk.cyan('\n╭────────────── WA-HOOK SIMULATOR ──────────────╮\n'));
+    // The Sleek Header
+    console.log(chalk.magenta('\n╭──────────────────────────────────────────────────╮'));
+    console.log(chalk.magenta('│') + chalk.yellow.bold('               WA-HOOK SIMULATOR                  ') + chalk.magenta('│'));
+    console.log(chalk.magenta('╰──────────────────────────────────────────────────╯\n'));
 
     const response = await prompts([
       {
         type: 'text',
         name: 'from',
-        message: 'Sender Phone Number:',
+        message: chalk.hex('#6366F1')('Sender Phone Number:'),
         initial: '919876543210'
       },
       {
         type: 'select',
         name: 'type',
-        message: 'Payload Type:',
+        message: chalk.hex('#6366F1')('Payload Type:'),
         choices: [
           { title: 'Text Message', value: 'text' },
           { title: 'Button Click (Interactive)', value: 'interactive' }
         ]
       },
       {
-        type: (prev) => prev === 'text' ? 'text' : null,
+        type: (prev: string) => prev === 'text' ? 'text' : null,
         name: 'message',
-        message: 'Message Body:',
+        message: chalk.hex('#6366F1')('Message Body:'),
         initial: 'Generate GST invoice'
       }
     ]);
 
     // Handle user cancelling the prompt (Ctrl+C)
     if (!response.from || !response.type) {
-      console.log(chalk.yellow('\nSimulation cancelled.\n'));
+      console.log(chalk.yellow('\n⚠ Simulation cancelled.\n'));
       return;
     }
 
@@ -107,7 +110,7 @@ program
     };
 
     try {
-      console.log(chalk.gray('\nDispatching webhook...'));
+      console.log(chalk.gray('\nDispatching webhook to local engine...'));
       
       const res = await fetch(`http://localhost:${state.port}/simulator/trigger`, {
         method: 'POST',
@@ -115,21 +118,27 @@ program
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
-
       if (res.ok) {
-        console.log(chalk.green('\n✓ Webhook generated'));
-        console.log(chalk.green('✓ Payload dispatched'));
-        console.log(chalk.green(`✓ Target responded with 200 OK\n`));
+        // Professional Success Block
+        console.log(chalk.green('\n┌─ SUCCESS ────────────────────────────────────────┐'));
+        console.log(chalk.green('│ ✓ Webhook generated                              │'));
+        console.log(chalk.green('│ ✓ Payload dispatched                             │'));
+        console.log(chalk.green('│ ✓ Target responded with 200 OK                   │'));
+        console.log(chalk.green('└──────────────────────────────────────────────────┘\n'));
       } else {
-        console.log(chalk.red('\n✖ Dispatch failed. Target server rejected the webhook.'));
-        console.log(chalk.gray(`  Status: ${res.status}`));
+        // Professional Error Block
+        const statusText = `Status: ${res.status}`.padEnd(42);
+        console.log(chalk.red('\n┌─ FAILED ─────────────────────────────────────────┐'));
+        console.log(chalk.red('│ ✖ Dispatch failed. Target server rejected.       │'));
+        console.log(chalk.red(`│   ${statusText} │`));
+        console.log(chalk.red('└──────────────────────────────────────────────────┘\n'));
       }
     } catch (error) {
-      console.log(chalk.red('\n✖ Network Error: Failed to reach the local WA-hook engine.'));
+      console.log(chalk.red('\n┌─ FATAL ERROR ────────────────────────────────────┐'));
+      console.log(chalk.red('│ ✖ Failed to reach the local WA-hook engine.      │'));
+      console.log(chalk.red('│   Is the background server running?              │'));
+      console.log(chalk.red('└──────────────────────────────────────────────────┘\n'));
     }
-    
-    console.log(chalk.cyan('╰────────────────────────────────────────────────╯\n'));
   });
 
 program.parse(process.argv);
