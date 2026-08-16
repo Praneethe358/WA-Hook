@@ -26,11 +26,28 @@ app.get('/health', (_, res) => {
 });
 
 import { displayStartupSequence } from './utils/logger';
+import { saveState, clearState } from './utils/state';
 
 export async function startServer() {
-  app.listen(RUNTIME_CONFIG.PORT, async () => {
+  const server = app.listen(RUNTIME_CONFIG.PORT, async () => {
+    // 1. Save state so other CLI commands know where to look
+    saveState({
+      port: Number(RUNTIME_CONFIG.PORT),
+      targetUrl: RUNTIME_CONFIG.TARGET_WEBHOOK_URL,
+      pid: process.pid
+    });
+
+    // 2. Trigger your existing terminal animations
     await displayStartupSequence();
   });
+
+  // 3. Clean up state on exit
+  const cleanup = () => {
+    clearState();
+    server.close(() => process.exit(0));
+  };
+  process.on('SIGINT', cleanup);
+  process.on('SIGTERM', cleanup);
 }
 
 // Auto-start if executed directly (e.g. via tsx in development)
