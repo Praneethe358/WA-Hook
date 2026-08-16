@@ -2,6 +2,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import prompts from 'prompts';
 import { RUNTIME_CONFIG } from '../config';
 import { startServer } from '../index';
 import { readState } from '../utils/state';
@@ -49,6 +50,86 @@ program
     } catch {
       console.log(chalk.yellow('\n⚠ State file exists, but server is not responding.'));
     }
+  });
+
+// Command: simulate
+program
+  .command('simulate')
+  .description('Trigger a webhook directly from the terminal')
+  .action(async () => {
+    const state = readState();
+    
+    if (!state) {
+      console.log(chalk.red('\n✖ WA-hook server is not running.'));
+      console.log(chalk.gray('  Run `wa-hook start` in another terminal tab first.\n'));
+      return;
+    }
+
+    console.log(chalk.cyan('\n╭────────────── WA-HOOK SIMULATOR ──────────────╮\n'));
+
+    const response = await prompts([
+      {
+        type: 'text',
+        name: 'from',
+        message: 'Sender Phone Number:',
+        initial: '919876543210'
+      },
+      {
+        type: 'select',
+        name: 'type',
+        message: 'Payload Type:',
+        choices: [
+          { title: 'Text Message', value: 'text' },
+          { title: 'Button Click (Interactive)', value: 'interactive' }
+        ]
+      },
+      {
+        type: (prev) => prev === 'text' ? 'text' : null,
+        name: 'message',
+        message: 'Message Body:',
+        initial: 'Generate GST invoice'
+      }
+    ]);
+
+    // Handle user cancelling the prompt (Ctrl+C)
+    if (!response.from || !response.type) {
+      console.log(chalk.yellow('\nSimulation cancelled.\n'));
+      return;
+    }
+
+    // Construct payload for the WA-hook engine
+    const payload = {
+      from: response.from,
+      type: response.type,
+      ...(response.type === 'text' ? { message: response.message } : { 
+        button_payload: { id: 'btn_1', title: 'Confirm Action' } 
+      })
+    };
+
+    try {
+      console.log(chalk.gray('\nDispatching webhook...'));
+      
+      const res = await fetch(`http://localhost:${state.port}/simulator/trigger`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        console.log(chalk.green('\n✓ Webhook generated'));
+        console.log(chalk.green('✓ Payload dispatched'));
+        console.log(chalk.green(`✓ Target responded with 200 OK\n`));
+      } else {
+        console.log(chalk.red('\n✖ Dispatch failed. Target server rejected the webhook.'));
+        console.log(chalk.gray(`  Status: ${res.status}`));
+      }
+    } catch (error) {
+      console.log(chalk.red('\n✖ Network Error: Failed to reach the local WA-hook engine.'));
+    }
+    
+    console.log(chalk.cyan('╰────────────────────────────────────────────────╯\n'));
   });
 
 program.parse(process.argv);
