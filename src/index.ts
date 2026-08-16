@@ -25,14 +25,11 @@ app.get('/health', (_, res) => {
   res.status(200).json({ status: 'ok', service: 'WA-hook Core' });
 });
 
-export function startServer() {
-  app.listen(RUNTIME_CONFIG.PORT, () => {
-    console.log(`\n==================================================`);
-    console.log(`🚀 WA-hook Active on http://localhost:${RUNTIME_CONFIG.PORT}`);
-    console.log(`🎯 Target Webhook:    ${RUNTIME_CONFIG.TARGET_WEBHOOK_URL}`);
-    console.log(`🔑 Handshake Token:   ${RUNTIME_CONFIG.WEBHOOK_VERIFY_TOKEN}`);
-    console.log(`🖥️  Dashboard UI:      http://localhost:${RUNTIME_CONFIG.PORT}`);
-    console.log(`==================================================\n`);
+import { displayStartupSequence } from './utils/logger';
+
+export async function startServer() {
+  app.listen(RUNTIME_CONFIG.PORT, async () => {
+    await displayStartupSequence();
   });
 }
 
