@@ -1,10 +1,10 @@
 {
-  "name": "wa-hook",
+  "name": "@praneeth358/wa-local-hook",
   "version": "0.1.0",
   "description": "Local WhatsApp Cloud API simulator and webhook handler",
   "main": "dist/index.js",
   "bin": {
-    "wa-hook": "dist/bin/cli.js"
+    "wa-local-hook": "dist/bin/cli.js"
   },
   "scripts": {
     "build": "tsc && copyfiles -u 0 \"public/**/*\" \"public/*\" dist/",
