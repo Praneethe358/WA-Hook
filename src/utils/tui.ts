@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import { RUNTIME_CONFIG } from '../config';
 
 // ══════════════════════════════════════════════════════════════════════
-// WA-Hook TUI — Zero-framework, raw ANSI rendering engine.
+// WA-Hook TUI v2 — Zero-framework, raw ANSI rendering engine.
 //
 // Every frame is computed as a single string and flushed to stdout
 // in one atomic write() call. This makes partial redraws and screen
@@ -11,76 +11,106 @@ import { RUNTIME_CONFIG } from '../config';
 
 // ── Box-drawing characters ──
 const TL = '┌', TR = '┐', BL = '└', BR = '┘';
-const H = '─', V = '│', LT = '├', RT = '┤';
+const H = '─', V = '│';
 
 // ── ANSI helpers ──
 const ESC = '\x1b';
-const ALT_ON = `${ESC}[?1049h`;    // Enter alternate screen buffer
-const ALT_OFF = `${ESC}[?1049l`;   // Exit alternate screen buffer
-const HIDE_CUR = `${ESC}[?25l`;    // Hide cursor
-const SHOW_CUR = `${ESC}[?25h`;    // Show cursor
-const HOME = `${ESC}[H`;           // Move cursor to top-left
-const CLEAR = `${ESC}[2J`;         // Clear entire screen
+const ALT_ON = `${ESC}[?1049h`;
+const ALT_OFF = `${ESC}[?1049l`;
+const HIDE_CUR = `${ESC}[?25l`;
+const SHOW_CUR = `${ESC}[?25h`;
+const HOME = `${ESC}[H`;
+const CLEAR = `${ESC}[2J`;
+const BG_BLACK = `${ESC}[40m`;       // Force black background
+const FG_RESET = `${ESC}[0m`;
 
-// ── Theme ──
-const c = {
-  border: chalk.gray,
-  label: chalk.magenta.bold,
-  text: chalk.white,
-  muted: chalk.gray,
-  green: chalk.green,
-  red: chalk.red,
-  cyan: chalk.cyan,
-  yellow: chalk.yellow,
-  highlight: chalk.bgMagenta.white,
-  editHighlight: chalk.bgBlue.white,
-  btnNormal: chalk.bgMagenta.white.bold,
-  btnFocus: chalk.bgBlue.white.bold,
+// ── Vibrant Dark Theme — optimized for dark terminal backgrounds ──
+const theme = {
+  // Borders & structure — bright cyan so they POP on dark bg
+  border: chalk.hex('#00CED1'),          // Dark turquoise borders
+  borderFocus: chalk.hex('#00FFFF'),     // Bright cyan on focus
+  label: chalk.hex('#FF69B4').bold,      // Hot pink labels
+
+  // Text hierarchy
+  text: chalk.whiteBright,               // Pure bright white
+  bright: chalk.whiteBright.bold,
+  muted: chalk.hex('#B0B0B0'),           // Light gray
+  dim: chalk.hex('#808080'),             // Medium gray
+
+  // Accents — fully saturated
+  green: chalk.hex('#00FF88'),           // Neon green
+  red: chalk.hex('#FF4757'),             // Bright red
+  cyan: chalk.hex('#00FFFF'),            // Bright cyan
+  yellow: chalk.hex('#FFD700'),          // Gold
+  purple: chalk.hex('#BF40FF'),          // Electric purple
+  magenta: chalk.hex('#FF69B4'),         // Hot pink
+
+  // Interactive states
+  highlight: chalk.bgHex('#BF40FF').whiteBright.bold,  // Focused field
+  editHighlight: chalk.bgHex('#0066FF').whiteBright.bold, // Editing field
+  btnNormal: chalk.bgHex('#BF40FF').whiteBright.bold,  // Button default
+  btnFocus: chalk.bgHex('#0066FF').whiteBright.bold,    // Button focused
+
+  // Header
+  headerBg: chalk.hex('#B0B0B0'),
+  headerAccent: chalk.hex('#00FFFF').bold,
+
+  // Status indicators
+  success: chalk.hex('#00FF88').bold,     // Neon green
+  error: chalk.hex('#FF4757').bold,       // Bright red
+  warning: chalk.hex('#FFD700').bold,     // Gold
+  info: chalk.hex('#00BFFF').bold,        // Deep sky blue
 };
 
-// ── Utility: pad string to exact visible width ──
+// ── Utility functions ──
+function stripAnsi(str: string): string {
+  return str.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
 function pad(str: string, width: number): string {
   const visible = stripAnsi(str);
   if (visible.length >= width) return str.substring(0, width);
   return str + ' '.repeat(width - visible.length);
 }
 
-function stripAnsi(str: string): string {
-  return str.replace(/\x1b\[[0-9;]*m/g, '');
+function padBg(str: string, width: number): string {
+  // Pad with black background spaces
+  const visible = stripAnsi(str);
+  if (visible.length >= width) return str;
+  return str + chalk.bgBlack(' '.repeat(width - visible.length));
 }
 
-// ── Draw a bordered box as an array of lines ──
+// ── Draw a bordered box ──
 function drawBox(
   width: number,
   height: number,
   label: string,
-  contentLines: string[]
+  contentLines: string[],
+  focused: boolean = false
 ): string[] {
   const inner = width - 2;
   const lines: string[] = [];
+  const b = focused ? theme.borderFocus : theme.border;
 
   // Top border with label
   const labelStr = label ? ` ${label} ` : '';
+  const labelStyled = focused ? theme.label(labelStr) : theme.label(labelStr);
   const topFill = inner - stripAnsi(labelStr).length;
   lines.push(
-    c.border(TL) +
-    c.border(H) +
-    c.label(labelStr) +
-    c.border(H.repeat(Math.max(0, topFill - 1))) +
-    c.border(TR)
+    b(TL) + b(H) + labelStyled +
+    b(H.repeat(Math.max(0, topFill - 1))) + b(TR)
   );
 
-  // Content rows
+  // Content rows — each gets a black background fill
   for (let i = 0; i < height - 2; i++) {
     const content = contentLines[i] || '';
     lines.push(
-      c.border(V) + pad(content, inner) + c.border(V)
+      b(V) + padBg(content, inner) + b(V)
     );
   }
 
   // Bottom border
-  lines.push(c.border(BL) + c.border(H.repeat(inner)) + c.border(BR));
-
+  lines.push(b(BL) + b(H.repeat(inner)) + b(BR));
   return lines;
 }
 
@@ -91,6 +121,7 @@ function drawBox(
 interface Field {
   label: string;
   value: string;
+  onSave?: (val: string) => void;
 }
 
 export async function startTUI() {
@@ -105,25 +136,33 @@ export async function startTUI() {
 
   // ── State ──
   const fields: Field[] = [
-    { label: 'Phone Number:', value: '919876543210' },
-    { label: 'Payload Type:', value: 'text' },
-    { label: 'Message Body:', value: 'Generate GST invoice' },
+    {
+      label: 'Target URL',
+      value: RUNTIME_CONFIG.TARGET_WEBHOOK_URL,
+      onSave: (val: string) => { RUNTIME_CONFIG.TARGET_WEBHOOK_URL = val; }
+    },
+    { label: 'Phone Number', value: '919876543210' },
+    { label: 'Payload Type', value: 'text' },
+    { label: 'Message Body', value: 'Generate GST invoice' },
   ];
-  let focusIdx = 0;          // 0-2 = fields, 3 = button
+  const TOTAL_FOCUSABLES = fields.length + 1; // fields + button
+  const BTN_IDX = fields.length;
+
+  let focusIdx = 0;
   let isEditing = false;
   let editBuffer = '';
   let dispatched = 0;
   let failed = 0;
-  let statusLine = c.muted('Ready to dispatch webhook.');
-  const logLines: string[] = [c.muted('Waiting for actions...')];
+  let statusLine = theme.muted('Ready to dispatch webhook.');
+  let statusIcon = theme.dim('●');
+  const logLines: string[] = [theme.dim('  Waiting for actions...')];
 
   // ── Terminal setup ──
   const cols = () => process.stdout.columns || 80;
   const rows = () => process.stdout.rows || 24;
 
-  process.stdout.write(ALT_ON + HIDE_CUR + CLEAR);
+  process.stdout.write(ALT_ON + HIDE_CUR + CLEAR + BG_BLACK);
 
-  // Enable raw mode for keypress capture
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(true);
   }
@@ -135,23 +174,19 @@ export async function startTUI() {
     console.log = origLog;
     console.warn = origWarn;
     console.error = origErr;
-    process.stdout.write(SHOW_CUR + ALT_OFF);
+    process.stdout.write(FG_RESET + SHOW_CUR + ALT_OFF);
     if (process.stdin.isTTY) {
       try { process.stdin.setRawMode(false); } catch {}
     }
     process.stdin.pause();
   };
 
-  const exit = () => {
-    cleanup();
-    process.exit(0);
-  };
-
+  const exit = () => { cleanup(); process.exit(0); };
   process.on('SIGINT', exit);
   process.on('SIGTERM', exit);
 
   // ══════════════════════════════════════════════════════════════════
-  // RENDER — builds the entire frame and flushes it atomically
+  // RENDER
   // ══════════════════════════════════════════════════════════════════
   function render() {
     const W = cols();
@@ -161,34 +196,39 @@ export async function startTUI() {
 
     const output: string[] = [];
 
-    // ── Row 0: Header ──
-    output.push(pad(c.text(' ') + chalk.bold('WA-HOOK') + c.text(' Fleet overview'), W));
+    // ── Row 0: Header bar ──
+    const headerLeft = theme.headerAccent(' WA-HOOK ') + theme.headerBg(' Fleet Overview');
+    const version = theme.dim(' v0.1.0 ');
+    output.push(padBg(headerLeft + version, W));
 
-    // ── Rows 1-6: Status / Stats / Remote (3 columns) ──
+    // ── Rows 1-6: Top panels (Status / Stats / Remote) ──
     const col1W = Math.floor(W / 3);
     const col2W = Math.floor(W / 3);
     const col3W = W - col1W - col2W;
 
+    const targetUrlShort = RUNTIME_CONFIG.TARGET_WEBHOOK_URL.substring(0, col1W - 12);
     const statusContent = [
       '',
-      ` ${c.green('*')} ${c.green('Clean')}`,
-      ` Port: ${RUNTIME_CONFIG.PORT}`,
-      ` Target: ${RUNTIME_CONFIG.TARGET_WEBHOOK_URL.substring(0, col1W - 6)}`,
+      `  ${theme.success('●')} ${theme.success('Running')}`,
+      `  ${theme.dim('Port')}    ${theme.text(RUNTIME_CONFIG.PORT.toString())}`,
+      `  ${theme.dim('Target')}  ${theme.cyan(targetUrlShort)}`,
     ];
     const statsContent = [
       '',
-      ` ${chalk.bold(dispatched.toString())} Dispatched`,
-      ` ${chalk.bold(failed.toString())} Failed`,
-      ` 1 Contributor`,
+      `  ${theme.green(dispatched.toString())} ${theme.text('Dispatched')}`,
+      `  ${theme.red(failed.toString())} ${theme.text('Failed')}`,
+      `  ${theme.dim('1 Contributor')}`,
     ];
     const remoteContent = [
       '',
-      ` origin  ${c.green('^' + dispatched)}  ${c.red('v' + failed)}`,
+      `  ${theme.dim('origin')}  ${theme.green('↑' + dispatched)}  ${theme.red('↓' + failed)}`,
+      '',
+      `  ${theme.dim('branch')}  ${theme.magenta('feat/issue-7')}`,
     ];
 
     const statusBox = drawBox(col1W, 6, 'STATUS', statusContent);
-    const statsBox = drawBox(col2W, 6, 'COMMITS (DISPATCHES)', statsContent);
-    const remoteBox = drawBox(col3W, 6, 'REMOTE SUMMARY', remoteContent);
+    const statsBox = drawBox(col2W, 6, 'DISPATCHES', statsContent);
+    const remoteBox = drawBox(col3W, 6, 'REMOTE', remoteContent);
 
     for (let i = 0; i < 6; i++) {
       output.push(
@@ -199,33 +239,32 @@ export async function startTUI() {
     }
 
     // ── Rows 7+: Simulator (left) + Logs (right) ──
-    const simH = H_TOTAL - 8; // -1 header, -6 top row, -1 footer
+    const simH = H_TOTAL - 8;
     const logH = simH;
-
-    // Build simulator content
     const simContent: string[] = [];
 
-    // Fields
+    // Editable fields
     for (let fi = 0; fi < fields.length; fi++) {
       const f = fields[fi];
-      const labelPad = pad(c.muted(`  ${f.label}`), 19);
+      const labelText = `  ${theme.dim(f.label.padEnd(14))}`;
       let valStr: string;
 
       if (isEditing && focusIdx === fi) {
-        valStr = c.editHighlight(` ${editBuffer}_ `);
+        valStr = theme.editHighlight(` ${editBuffer}_ `);
       } else if (!isEditing && focusIdx === fi) {
-        valStr = c.highlight(` ${f.value} `);
+        valStr = theme.highlight(` ${f.value} `);
       } else {
-        valStr = c.text(` ${f.value}`);
+        valStr = theme.text(` ${f.value}`);
       }
 
-      simContent.push(labelPad + valStr);
-      simContent.push(''); // spacer line
+      simContent.push(labelText + valStr);
+      if (fi < fields.length - 1) simContent.push(''); // spacer between fields
     }
+    simContent.push(''); // spacer before status box
 
-    // Error/status box (embedded as sub-box)
-    const errBoxLines = drawBox(leftW - 6, 5, 'DISPATCH STATUS & ERRORS', [
-      ' ' + statusLine,
+    // Embedded status/error box
+    const errBoxLines = drawBox(leftW - 6, 5, 'DISPATCH STATUS', [
+      ` ${statusIcon} ${statusLine}`,
       '',
       '',
     ]);
@@ -234,28 +273,28 @@ export async function startTUI() {
     }
 
     // Fill remaining space
-    while (simContent.length < simH - 5) {
+    while (simContent.length < simH - 4) {
       simContent.push('');
     }
 
-    // Button
-    const btnText = '  PUSH WEBHOOK  ';
-    const btnStr = focusIdx === 3
-      ? c.btnFocus(` ${btnText} `)
-      : c.btnNormal(` ${btnText} `);
+    // Button at bottom
+    const btnText = '  ▶ PUSH WEBHOOK  ';
+    const btnStr = focusIdx === BTN_IDX
+      ? theme.btnFocus(` ${btnText} `)
+      : theme.btnNormal(` ${btnText} `);
     simContent.push('');
     simContent.push(`  ${btnStr}`);
     simContent.push('');
 
-    const simBox = drawBox(leftW, simH, 'STAGED / SIMULATOR', simContent);
+    const simBox = drawBox(leftW, simH, 'STAGED / SIMULATOR', simContent, focusIdx < BTN_IDX);
 
-    // Build log content
+    // Log panel
     const visibleLogs = logLines.slice(-(logH - 2));
     const logContent: string[] = [];
     for (const l of visibleLogs) {
       logContent.push(' ' + l);
     }
-    const logBoxLines = drawBox(rightW, logH, 'RECENT COMMITS (LOGS)', logContent);
+    const logBoxLines = drawBox(rightW, logH, 'ACTIVITY LOG', logContent);
 
     for (let i = 0; i < simH; i++) {
       output.push(
@@ -265,19 +304,17 @@ export async function startTUI() {
     }
 
     // ── Footer ──
-    output.push(
-      pad(
-        c.muted(' ') +
-        c.text('q') + c.muted(' Quit   ') +
-        c.text('Tab') + c.muted(' Next   ') +
-        c.text('Enter') + c.muted(' Edit / Push'),
-        W
-      )
-    );
+    const footerContent =
+      theme.dim(' ') +
+      chalk.bgHex('#00CED1').black.bold(' q ') + theme.muted(' Quit  ') +
+      chalk.bgHex('#00CED1').black.bold(' Tab ') + theme.muted(' Next  ') +
+      chalk.bgHex('#00CED1').black.bold(' ↑↓ ') + theme.muted(' Move  ') +
+      chalk.bgHex('#00CED1').black.bold(' Enter ') + theme.muted(' Edit / Push  ') +
+      chalk.bgHex('#00CED1').black.bold(' Esc ') + theme.muted(' Cancel');
+    output.push(padBg(footerContent, W));
 
     // ── Atomic flush ──
-    const frame = HOME + output.join('\n');
-    process.stdout.write(frame);
+    process.stdout.write(HOME + BG_BLACK + output.join('\n'));
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -285,15 +322,16 @@ export async function startTUI() {
   // ══════════════════════════════════════════════════════════════════
   async function triggerDispatch() {
     const time = new Date().toLocaleTimeString();
-    logLines.push(`${c.cyan(`[${time}]`)} Dispatching...`);
-    statusLine = c.yellow('Sending request to target URL...');
+    logLines.push(`  ${theme.cyan(`[${time}]`)} ${theme.text('Dispatching...')}`);
+    statusLine = theme.yellow('Sending request...');
+    statusIcon = theme.warning('◌');
     render();
 
     const payload = {
-      from: fields[0].value,
-      type: fields[1].value,
-      ...(fields[1].value === 'text'
-        ? { message: fields[2].value }
+      from: fields[1].value,
+      type: fields[2].value,
+      ...(fields[2].value === 'text'
+        ? { message: fields[3].value }
         : { button_payload: { id: 'btn_1', title: 'Action' } })
     };
 
@@ -311,83 +349,69 @@ export async function startTUI() {
 
       if (res.ok) {
         dispatched++;
-        logLines.push(c.green('* Success: 200 OK'));
-        statusLine = c.green('* SUCCESS (200 OK) — Target accepted payload.');
+        logLines.push(`  ${theme.success('✓')} ${theme.text('200 OK')} ${theme.dim('— payload accepted')}`);
+        statusLine = theme.success('SUCCESS — Target server accepted webhook payload.');
+        statusIcon = theme.success('●');
       } else {
         failed++;
-        logLines.push(c.red(`x Failed (${res.status})`));
-        statusLine = c.red(`x FAILED (${res.status}) — ${data.error || 'Rejected'}`);
+        logLines.push(`  ${theme.error('✗')} ${theme.text(`${res.status}`)} ${theme.dim('— rejected')}`);
+        statusLine = theme.error(`FAILED (${res.status}) — ${data.error || 'Rejected'}`);
+        statusIcon = theme.error('●');
       }
     } catch {
       failed++;
-      logLines.push(c.red('x Network error'));
-      statusLine = c.red('x CONNECTION REFUSED — Is your backend running?');
+      logLines.push(`  ${theme.error('✗')} ${theme.dim('Connection refused')}`);
+      statusLine = theme.error('ECONNREFUSED — Is your backend running?');
+      statusIcon = theme.error('●');
     }
 
     render();
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // KEYBOARD INPUT — raw stdin, no framework
+  // KEYBOARD INPUT
   // ══════════════════════════════════════════════════════════════════
   process.stdin.on('data', (data: string) => {
     for (let i = 0; i < data.length; i++) {
       const ch = data[i];
       const code = ch.charCodeAt(0);
 
-      // ── Check for escape sequences (arrow keys, etc.) ──
+      // ── Escape sequences (arrows) ──
       if (ch === '\x1b' && data[i + 1] === '[') {
         const seq = data[i + 2];
-        if (seq === 'B') { // Down arrow
-          if (!isEditing) { focusIdx = (focusIdx + 1) % 4; render(); }
-          i += 2;
-          continue;
+        if (seq === 'B') { // Down
+          if (!isEditing) { focusIdx = (focusIdx + 1) % TOTAL_FOCUSABLES; render(); }
+          i += 2; continue;
         }
-        if (seq === 'A') { // Up arrow
-          if (!isEditing) { focusIdx = (focusIdx + 3) % 4; render(); }
-          i += 2;
-          continue;
+        if (seq === 'A') { // Up
+          if (!isEditing) { focusIdx = (focusIdx + TOTAL_FOCUSABLES - 1) % TOTAL_FOCUSABLES; render(); }
+          i += 2; continue;
         }
-        i += 2;
-        continue;
+        i += 2; continue;
       }
 
       // ── EDITING MODE ──
       if (isEditing) {
         if (ch === '\r' || ch === '\n') {
-          // Save and exit edit mode
           fields[focusIdx].value = editBuffer;
+          if (fields[focusIdx].onSave) {
+            fields[focusIdx].onSave!(editBuffer);
+          }
           isEditing = false;
-          focusIdx = (focusIdx + 1) % 4;
+          focusIdx = (focusIdx + 1) % TOTAL_FOCUSABLES;
           render();
           continue;
         }
-        if (code === 27) { // Escape
-          isEditing = false;
-          render();
-          continue;
-        }
-        if (code === 127 || code === 8) { // Backspace
-          editBuffer = editBuffer.slice(0, -1);
-          render();
-          continue;
-        }
-        if (code >= 32 && code < 127) { // Printable ASCII
-          editBuffer += ch;
-          render();
-          continue;
-        }
+        if (code === 27) { isEditing = false; render(); continue; }
+        if (code === 127 || code === 8) { editBuffer = editBuffer.slice(0, -1); render(); continue; }
+        if (code >= 32 && code < 127) { editBuffer += ch; render(); continue; }
         continue;
       }
 
       // ── NAVIGATION MODE ──
-      if (ch === '\t') { // Tab
-        focusIdx = (focusIdx + 1) % 4;
-        render();
-        continue;
-      }
-      if (ch === '\r' || ch === '\n') { // Enter
-        if (focusIdx === 3) {
+      if (ch === '\t') { focusIdx = (focusIdx + 1) % TOTAL_FOCUSABLES; render(); continue; }
+      if (ch === '\r' || ch === '\n') {
+        if (focusIdx === BTN_IDX) {
           triggerDispatch();
         } else {
           isEditing = true;
@@ -396,29 +420,23 @@ export async function startTUI() {
         }
         continue;
       }
-      if (ch === 'q' || code === 3) { // q or Ctrl+C
-        exit();
-        return;
-      }
+      if (ch === 'q' || code === 3) { exit(); return; }
     }
   });
 
-  // ── Drain Express logs periodically ──
+  // ── Drain Express logs ──
   setInterval(() => {
     if (pendingLogs.length > 0) {
       const logs = pendingLogs.splice(0, pendingLogs.length);
       for (const msg of logs) {
-        logLines.push(c.muted(stripAnsi(msg)));
+        logLines.push(`  ${theme.dim(stripAnsi(msg))}`);
       }
       render();
     }
   }, 500);
 
-  // ── Handle terminal resize ──
-  process.stdout.on('resize', () => {
-    process.stdout.write(CLEAR);
-    render();
-  });
+  // ── Handle resize ──
+  process.stdout.on('resize', () => { process.stdout.write(CLEAR); render(); });
 
   // ── Initial render ──
   render();
