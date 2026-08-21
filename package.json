@@ -1,5 +1,5 @@
 {
-  "name": "@praneeth358/wa-local-hook",
+  "name": "@praneethe358/wa-local-hook",
   "version": "0.1.0",
   "description": "Local WhatsApp Cloud API simulator and webhook handler",
   "main": "dist/index.js",
@@ -43,5 +43,8 @@
     "copyfiles": "^2.4.1",
     "tsx": "^4.7.1",
     "typescript": "^5.3.3"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
   }
 }
